@@ -1,3 +1,5 @@
+import 'dart:developer';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -8,6 +10,7 @@ class GroupMessageTopicComponent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    log(mensagem.toString());
     double screenSize = MediaQuery.sizeOf(context).width;
     return Container(
       width: screenSize - screenSize / 10,
@@ -57,12 +60,17 @@ class SensorWidget extends StatelessWidget {
           style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
         ),
         ...dadosSensor['poluentes'].map((poluente) {
+          final List<String> efeitos =
+              (poluente['affected_diseases']['disease'] as List)
+                  .map((e) => e.toString())
+                  .toList();
+
           return Padding(
             padding: const EdgeInsets.only(top: 10),
             child: PoluenteWidget(
               nome: poluente['poluente'],
               prioridade: poluente['risk_level'],
-              efeitos: poluente['affected_diseases']['disease'],
+              efeitos: efeitos,
             ),
           );
         }),

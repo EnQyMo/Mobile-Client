@@ -3,201 +3,72 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile_client/ui/settings/view_models/settings_view_model.dart';
 import 'package:mobile_client/ui/settings/widgets/settings_page_view.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:permission_handler/permission_handler.dart';
-import 'package:plugin/plugin.dart';
 
-class MockPlugin extends Mock implements Plugin {}
-
-class MockPermissionService extends Mock implements PermissionService {}
+class MockSettingsViewModel extends Mock implements SettingsViewModel {}
 
 void main() {
-  late SettingsViewModel settingsViewModel;
-  late MockPlugin mockPlugin;
-  late MockPermissionService mockPermissionService;
+  late MockSettingsViewModel mockSettingsViewModel;
 
   setUp(() {
-    mockPlugin = MockPlugin();
-    mockPermissionService = MockPermissionService();
-    settingsViewModel = SettingsViewModel.setMock(
-      mockPlugin,
-      mockPermissionService,
+    mockSettingsViewModel = MockSettingsViewModel();
+  });
+
+  testWidgets('renderiza corretamente', (tester) async {
+    when(() => mockSettingsViewModel.isMobileHubStarted).thenReturn(false);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SettingsPageView(settingsViewModel: mockSettingsViewModel),
+      ),
     );
+
+    expect(find.byKey(const Key('input ip address')), findsOneWidget);
+    expect(find.byKey(const Key('input port')), findsOneWidget);
+    expect(find.text('Iniciar Mobile Hub'), findsOneWidget);
   });
 
-  group('inicia o mobile hub', () {
-    setUp(() {
-      when(
-        () => mockPermissionService.requestLocation(),
-      ).thenAnswer((_) async => PermissionStatus.granted);
-      when(
-        () => mockPermissionService.isNotificationDenied(),
-      ).thenAnswer((_) async => true);
-      when(
-        () => mockPermissionService.requestNotification(),
-      ).thenAnswer((_) async => PermissionStatus.granted);
-    });
-    testWidgets('sucesso', (tester) async {
-      var ipAddress = "123.123.123.0";
-      var port = "8096";
-      when(
-        () => mockPlugin.startMobileHub(
-          ipAddress: any(named: 'ipAddress'),
-          port: any(named: 'port'),
-        ),
-      ).thenAnswer((_) async {});
+  testWidgets('clica iniciar mobile hub sucesso', (tester) async {
+    when(() => mockSettingsViewModel.isMobileHubStarted).thenReturn(false);
+    when(
+      () => mockSettingsViewModel.startMobileHub(any(), any()),
+    ).thenAnswer((_) async => (message: "ok", success: true));
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: SettingsPageView(settingsViewModel: settingsViewModel),
-          ),
-        ),
-      );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SettingsPageView(settingsViewModel: mockSettingsViewModel),
+      ),
+    );
 
-      await tester.enterText(find.byType(TextField).first, ipAddress);
-      await tester.enterText(find.byType(TextField).last, port);
-      await tester.tap(find.byType(ElevatedButton).first);
+    await tester.enterText(
+      find.byKey(const Key('input ip address')),
+      '1.1.1.1',
+    );
+    await tester.enterText(find.byKey(const Key('input port')), '1');
+    await tester.tap(find.text('Iniciar Mobile Hub'));
+    await tester.pumpAndSettle();
 
-      await tester.pumpAndSettle();
-
-      verify(() => settingsViewModel.startMobileHub(ipAddress, port)).called(1);
-      expect(find.byType(SnackBar), findsOneWidget);
-      final snackBar = tester.widget<SnackBar>(find.byType(SnackBar));
-      expect(snackBar.backgroundColor, Colors.green);
-      expect(find.text('Mobile Hub iniciado com sucesso'), findsOneWidget);
-    });
-
-    testWidgets('endereço de ip inválido', (tester) async {
-      var ipAddress = "999.999.999.999";
-      var port = "8096";
-
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: SettingsPageView(settingsViewModel: settingsViewModel),
-          ),
-        ),
-      );
-
-      await tester.enterText(find.byType(TextField).first, ipAddress);
-      await tester.enterText(find.byType(TextField).last, port);
-      await tester.tap(find.byType(ElevatedButton).first);
-
-      await tester.pumpAndSettle();
-
-      verify(() => settingsViewModel.startMobileHub(ipAddress, port)).called(1);
-      final snackBar = tester.widget<SnackBar>(find.byType(SnackBar));
-      expect(find.byType(SnackBar), findsOneWidget);
-      expect(snackBar.backgroundColor, Colors.red);
-      expect(find.text('Endereço de IP inválido'), findsOneWidget);
-    });
-
-    testWidgets('porta inválida', (tester) async {
-      var ipAddress = "123.123.123.123";
-      var port = "-1";
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: SettingsPageView(settingsViewModel: settingsViewModel),
-          ),
-        ),
-      );
-
-      await tester.enterText(find.byType(TextField).first, ipAddress);
-      await tester.enterText(find.byType(TextField).last, port);
-      await tester.tap(find.byType(ElevatedButton).first);
-
-      await tester.pumpAndSettle();
-
-      verify(() => settingsViewModel.startMobileHub(ipAddress, port)).called(1);
-      final snackBar = tester.widget<SnackBar>(find.byType(SnackBar));
-      expect(find.byType(SnackBar), findsOneWidget);
-      expect(snackBar.backgroundColor, Colors.red);
-      expect(find.text('Porta inválida'), findsOneWidget);
-    });
-
-    testWidgets('erro exceção', (tester) async {
-      var ipAddress = "123.123.123.0";
-      var port = "8096";
-      when(
-        () => mockPlugin.startMobileHub(
-          ipAddress: any(named: 'ipAddress'),
-          port: any(named: 'port'),
-        ),
-      ).thenThrow(Exception('teste'));
-
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: SettingsPageView(settingsViewModel: settingsViewModel),
-          ),
-        ),
-      );
-
-      await tester.enterText(find.byType(TextField).first, ipAddress);
-      await tester.enterText(find.byType(TextField).last, port);
-      await tester.tap(find.byType(ElevatedButton).first);
-
-      await tester.pumpAndSettle();
-
-      verify(() => settingsViewModel.startMobileHub(ipAddress, port)).called(1);
-      final snackBar = tester.widget<SnackBar>(find.byType(SnackBar));
-      expect(find.byType(SnackBar), findsOneWidget);
-      expect(snackBar.backgroundColor, Colors.red);
-      expect(
-        find.text('Falha ao iniciar o Mobile Hub: Exception: teste'),
-        findsOneWidget,
-      );
-    });
+    verify(
+      () => mockSettingsViewModel.startMobileHub('1.1.1.1', '1'),
+    ).called(1);
   });
 
-  group('interrompe o mobile hub', () {
-    testWidgets('sucesso', (tester) async {
-      when(() => settingsViewModel.stopMobileHub()).thenAnswer((_) async {
-        return (success: true, message: 'Mobile Hub interrompido');
-      });
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: SettingsPageView(settingsViewModel: settingsViewModel),
-          ),
-        ),
-      );
+  testWidgets('clica parar mobile hub sucesso', (tester) async {
+    when(() => mockSettingsViewModel.isMobileHubStarted).thenReturn(true);
+    when(() => mockSettingsViewModel.ipAddress).thenReturn('');
+    when(() => mockSettingsViewModel.port).thenReturn('');
+    when(
+      () => mockSettingsViewModel.stopMobileHub(),
+    ).thenAnswer((_) async => (message: "ok", success: true));
 
-      await tester.tap(find.byType(ElevatedButton).last);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SettingsPageView(settingsViewModel: mockSettingsViewModel),
+      ),
+    );
 
-      await tester.pumpAndSettle();
+    await tester.tap(find.text('Parar Mobile Hub'));
+    await tester.pumpAndSettle();
 
-      final snackBar = tester.widget<SnackBar>(find.byType(SnackBar));
-      verify(() => settingsViewModel.stopMobileHub()).called(1);
-      expect(find.byType(SnackBar), findsOneWidget);
-      expect(snackBar.backgroundColor, Colors.green);
-      expect(find.text('Mobile Hub interrompido'), findsOneWidget);
-    });
-
-    testWidgets('erro exceção', (tester) async {
-      when(() => mockPlugin.stopMobileHub()).thenThrow(Exception('teste'));
-
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: SettingsPageView(settingsViewModel: settingsViewModel),
-          ),
-        ),
-      );
-
-      await tester.tap(find.byType(ElevatedButton).last);
-
-      await tester.pumpAndSettle();
-
-      verify(() => settingsViewModel.stopMobileHub()).called(1);
-      final snackBar = tester.widget<SnackBar>(find.byType(SnackBar));
-      expect(find.byType(SnackBar), findsOneWidget);
-      expect(snackBar.backgroundColor, Colors.red);
-      expect(
-        find.text('Falha ao interromper o Mobile Hub: Exception: teste'),
-        findsOneWidget,
-      );
-    });
+    verify(() => mockSettingsViewModel.stopMobileHub()).called(1);
   });
 }

@@ -1,48 +1,55 @@
-import 'dart:convert';
-import 'dart:developer';
-
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:mobile_client/core/message_service.dart';
 import 'package:mobile_client/ui/settings/view_models/settings_view_model.dart';
-import 'package:plugin/plugin.dart';
 
 class HomePageViewModel extends ChangeNotifier {
-  final List<Map<dynamic, dynamic>> _mensagens = [];
+  final MessageService _messageService;
+  final SettingsViewModel _settingsViewModel;
+  StreamSubscription? _streamSubscription;
+  List<Map<dynamic, dynamic>> _mensagens = [];
   List<Map<dynamic, dynamic>> get mensagens => List.unmodifiable(_mensagens);
-  final Plugin _plugin;
-
   bool _isMobileHubStarted = false;
   bool get isMobileHubStarted => _isMobileHubStarted;
 
-  HomePageViewModel() : _plugin = Plugin() {
-    Future.microtask(init);
+  HomePageViewModel()
+    : _messageService = MessageService(),
+      _settingsViewModel = SettingsViewModel() {
+    _setUpMessages();
   }
 
   @visibleForTesting
-  HomePageViewModel.setMock(this._plugin) {
-    Future.microtask(init);
+  HomePageViewModel.setMock(this._messageService, this._settingsViewModel) {
+    _setUpMessages();
   }
 
-  void init() async {
-    _isMobileHubStarted = SettingsViewModel().isMobileHubStarted;
+  void _setUpMessages() {
+    _mensagens = _messageService.mensagens;
 
-    if (_isMobileHubStarted) {
-      _setupMessageListener();
+    _streamSubscription = _messageService.stream.listen((mensagem) {
+      _mensagens = mensagem;
+      notifyListeners();
+    });
+
+    refreshMobileHubState();
+  }
+
+  void refreshMobileHubState() {
+    final started = _settingsViewModel.isMobileHubStarted;
+    _isMobileHubStarted = started;
+
+    if (started) {
+      _messageService.startListening();
+    } else {
+      _messageService.stopListening();
     }
 
     notifyListeners();
   }
 
-  void _setupMessageListener() {
-    _plugin.onMessageReceived.listen((novaMensagem) {
-      log('recebeu alerta');
-      var mensagemJson = jsonDecode(novaMensagem);
-      _mensagens.insert(0, mensagemJson);
-      notifyListeners();
-    });
-  }
-
-  void refreshMobileHubState() {
-    _isMobileHubStarted = SettingsViewModel().isMobileHubStarted;
-    notifyListeners();
+  @override
+  void dispose() {
+    _streamSubscription?.cancel();
+    super.dispose();
   }
 }

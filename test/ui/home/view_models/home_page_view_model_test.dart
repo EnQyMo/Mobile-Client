@@ -1,63 +1,86 @@
 import 'dart:async';
-import 'dart:convert';
-
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mobile_client/core/message_service.dart';
 import 'package:mobile_client/ui/home/view_models/home_page_view_model.dart';
+import 'package:mobile_client/ui/settings/view_models/settings_view_model.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:plugin/plugin.dart';
 
-class MockMethodChannelPlugin extends Mock implements Plugin {}
+class MockMessageService extends Mock implements MessageService {}
+
+class MockSettingsViewModel extends Mock implements SettingsViewModel {}
+
+class MockStreamSubscription<T> extends Mock implements StreamSubscription<T> {}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  late MockMessageService mockMessageService;
+  late MockSettingsViewModel mockSettingsViewModel;
   late HomePageViewModel homePageViewModel;
-  late MockMethodChannelPlugin mockPlugin;
-  late StreamController<String> streamController;
+  late StreamController<List<Map<dynamic, dynamic>>> streamController;
 
   setUp(() {
-    mockPlugin = MockMethodChannelPlugin();
-    streamController = StreamController<String>();
+    mockMessageService = MockMessageService();
+    mockSettingsViewModel = MockSettingsViewModel();
+    streamController =
+        StreamController<List<Map<dynamic, dynamic>>>.broadcast();
 
     when(
-      () => mockPlugin.onMessageReceived,
+      () => mockMessageService.stream,
     ).thenAnswer((_) => streamController.stream);
-    when(() => mockPlugin.isMobileHubStarted()).thenAnswer((_) async => true);
-
-    homePageViewModel = HomePageViewModel.setMock(mockPlugin);
+    when(() => mockSettingsViewModel.isMobileHubStarted).thenReturn(true);
   });
 
-  tearDown(() => streamController.close());
+  tearDown(() {
+    streamController.close();
+  });
 
-  test('inicializa com plugin padrão', () {
+  test('inicializa com os plugins padrões', () {
     expect(() => HomePageViewModel(), returnsNormally);
   });
-  test('lista inicia vazia', () {
-    expect(homePageViewModel.mensagens, isEmpty);
+
+  test('inicialização copia mensagens', () {
+    when(() => mockMessageService.mensagens).thenReturn([
+      {"msg": "teste"},
+    ]);
+
+    homePageViewModel = HomePageViewModel.setMock(
+      mockMessageService,
+      mockSettingsViewModel,
+    );
+
+    expect(homePageViewModel.mensagens.length, 1);
+    expect(homePageViewModel.mensagens.first["msg"], "teste");
+    expect(homePageViewModel.isMobileHubStarted, true);
   });
 
-  test('adiciona mensagem do stream na lista', () async {
-    const mensagem = "{\"texto\": \"teste\"}";
-    streamController.add(mensagem);
+  test('view model atualiza mensagens quando o service emite', () async {
+    when(() => mockMessageService.mensagens).thenReturn([]);
+    when(() => mockMessageService.startListening()).thenAnswer((_) {});
 
-    await Future(() {});
+    homePageViewModel = HomePageViewModel.setMock(
+      mockMessageService,
+      mockSettingsViewModel,
+    );
+    const mensagem = [
+      {"texto": "alerta novo"},
+    ];
+    streamController.add(mensagem);
+    await pumpEventQueue();
 
     expect(homePageViewModel.mensagens, hasLength(1));
-    expect(homePageViewModel.mensagens.first, jsonDecode(mensagem));
+    expect(homePageViewModel.mensagens.first["texto"], "alerta novo");
   });
 
-  group('mobile hub desligado?', () {
-    test('sim', () async {
-      final result = await mockPlugin.isMobileHubStarted();
-      expect(result, true);
-    });
+  test('mobile hub para', () {
+    when(() => mockMessageService.mensagens).thenReturn([]);
+    when(() => mockSettingsViewModel.isMobileHubStarted).thenReturn(false);
 
-    test('não', () async {
-      when(
-        () => mockPlugin.isMobileHubStarted(),
-      ).thenAnswer((_) async => false);
+    homePageViewModel = HomePageViewModel.setMock(
+      mockMessageService,
+      mockSettingsViewModel,
+    );
 
-      final result = await mockPlugin.isMobileHubStarted();
-      expect(result, false);
-    });
+    verify(() => mockMessageService.stopListening()).called(1);
+    expect(homePageViewModel.isMobileHubStarted, false);
   });
 }

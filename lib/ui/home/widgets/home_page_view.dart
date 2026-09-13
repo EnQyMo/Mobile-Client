@@ -22,6 +22,11 @@ class _HomePageViewState extends State<HomePageView>
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final viewModel = context.read<HomePageViewModel>();
+      viewModel.refreshMobileHubState();
+    });
+
     WidgetsBinding.instance.addObserver(this);
   }
 
@@ -34,7 +39,9 @@ class _HomePageViewState extends State<HomePageView>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      homePageViewModel.refreshMobileHubState();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        homePageViewModel.refreshMobileHubState();
+      });
     }
   }
 
@@ -43,6 +50,7 @@ class _HomePageViewState extends State<HomePageView>
     homePageViewModel =
         widget.homePageViewModel ??
         Provider.of<HomePageViewModel>(context, listen: false);
+
     return Scaffold(
       appBar: AppBar(
         title: Text(
@@ -131,13 +139,16 @@ class _HomePageViewState extends State<HomePageView>
                 );
               }
               return Expanded(
-                child: ListView.builder(
-                  itemCount: viewModel.mensagens.length,
-                  itemBuilder: (context, index) {
-                    return GroupMessageTopicComponent(
-                      mensagem: viewModel.mensagens[index],
-                    );
-                  },
+                child: Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: ListView.builder(
+                    itemCount: viewModel.mensagens.length,
+                    itemBuilder: (context, index) {
+                      return GroupMessageTopicComponent(
+                        mensagem: viewModel.mensagens[index]['analisys'],
+                      );
+                    },
+                  ),
                 ),
               );
             },
